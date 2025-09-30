@@ -21,3 +21,7 @@ python -m venv .venv
 source .venv/Scripts/activate
 pip install -r requirements.txt
 ```
+
+## Autoformat
+
+Install the 'Ruff' VSCode Extension here: https://marketplace.cursorapi.com/items/?itemName=charliermarsh.ruff for autoformatting.
