@@ -1,5 +1,6 @@
 import random
 import numpy as np
+
 # System parameters (global)
 m = 1.0  # mass of the particle
 phi = lambda y: 0.5 * y**2  # potential field function (example: quadratic potential)
@@ -35,16 +36,16 @@ def update_state(state: State, f_i: float):
     state.y = update_position(state.y, state.v)
     state.v = update_velocity(state.v, f_net)
 
-    
-
 
 def update_position(y: float, v: float) -> float:
     return y + v
+
 
 def noisy_position(y: float) -> float:
     mu = 0
     sigma = 0.5 * y
     return y + random.gauss(mu, sigma)
+
 
 def print_state(t, x: State):
     y_noisy = noisy_position(x.y)
@@ -56,12 +57,12 @@ def update_velocity(v: float, f_net: float) -> float:
 
     For pure particle without potential field: f_net(t) = f_i(t)
     """
-    crash_prob = p_c * abs(v)/v_max
+    crash_prob = p_c * abs(v) / v_max
     normal_dist = np.random.uniform()
     if normal_dist <= crash_prob:
-        v_n = v + 1/m * f_net + random.gauss(0, 0.1 * v)
-    else :
         v_n = 0
+    else:
+        v_n = v + 1 / m * f_net + random.gauss(0, 0.1 * v)
     return v_n
 
 
