@@ -37,8 +37,9 @@ def update_state(state: State, f_i: float):
 
 
 def update_position(y: float, v: float) -> float:
-    """Update position: y'(t) = y(t) + v(t)"""
-    return y + v
+    mu = 0
+    sigma = 0.5 * y
+    return y + v + random.gauss(mu, sigma)
 
 
 def update_velocity(v: float, f_net: float) -> float:
