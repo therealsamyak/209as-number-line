@@ -35,11 +35,20 @@ def update_state(state: State, f_i: float):
     state.y = update_position(state.y, state.v)
     state.v = update_velocity(state.v, f_net)
 
+    
+
 
 def update_position(y: float, v: float) -> float:
+    return y + v
+
+def noisy_position(y: float) -> float:
     mu = 0
     sigma = 0.5 * y
-    return y + v + random.gauss(mu, sigma)
+    return y + random.gauss(mu, sigma)
+
+def print_state(t, x: State):
+    y_noisy = noisy_position(x.y)
+    print(t, f"State(y={x.y:.3g}, v={x.v:.3g}, y_noisy={y_noisy:.3g})")
 
 
 def update_velocity(v: float, f_net: float) -> float:
@@ -85,7 +94,7 @@ def main():
 
     # Simulation loop
     for t in range(time_steps):
-        print(f"t={t}: {state}")
+        print_state(t, state)
         update_state(state, f_i)
 
     print(f"t={time_steps}: {state}")
