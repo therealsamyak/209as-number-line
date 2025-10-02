@@ -1,4 +1,5 @@
 import random
+import numpy as np
 # System parameters (global)
 m = 1.0  # mass of the particle
 phi = lambda y: 0.5 * y**2  # potential field function (example: quadratic potential)
@@ -10,6 +11,8 @@ f_i = 0.5  # constant applied force
 # Initial conditions (global)
 y_0 = 0.0  # initial position
 v_0 = 0.0  # initial velocity
+v_max = 10.0  # maximum velocity
+p_c = 0.1  # crash probability factor
 
 
 class State:
