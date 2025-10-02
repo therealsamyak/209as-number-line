@@ -36,7 +36,7 @@ then
     echo ""
     
     # Run the main script using UV
-    uv run main.py
+    uv run main2.py
 else
     echo "UV not detected - using standard Python/pip"
     echo ""
@@ -72,7 +72,7 @@ else
     echo ""
     
     # Run the main script
-    python main.py
+    python main2.py
     
     # Deactivate virtual environment
     deactivate
