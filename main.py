@@ -21,7 +21,7 @@ class State:
         self.v = v
 
     def __str__(self):
-        return f"State(y={self.y}, v={self.v})"
+        return f"State(y={self.y:.3g}, v={self.v:.3g})"
 
 
 def update_state(state: State, f_i: float):
@@ -78,8 +78,8 @@ def main():
     print("Pure Particle Dynamics Simulation")
     print("=" * 50)
     print(f"Initial state: {state}")
-    print(f"Mass: {m}, Applied force: {f_i}")
-    print(f"Potential field: phi(y) = 0.5 * y^2")
+    print(f"Mass: {m:.3g}, Applied force: {f_i:.3g}")
+    print(f"Potential field: phi(y) = {phi(y_0):.3g} * y^2")
     print("=" * 50)
 
     # Simulation loop
