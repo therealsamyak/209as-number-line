@@ -1,3 +1,4 @@
+import random
 # System parameters (global)
 m = 1.0  # mass of the particle
 phi = lambda y: 0.5 * y**2  # potential field function (example: quadratic potential)
@@ -40,11 +41,15 @@ def update_position(y: float, v: float) -> float:
 def update_velocity(v: float, f_net: float) -> float:
     """Update velocity: v'(t) = v(t) + (1/m) * f_net(t)
 
-    Args:
-        v: Current velocity
-        f_net: Net force acting on the particle
+    For pure particle without potential field: f_net(t) = f_i(t)
     """
-    return v + (f_net / m)
+    crash_prob = p_c * abs(v)/v_max
+    normal_dist = np.random.uniform()
+    if normal_dist <= crash_prob:
+        v_n = v + 1/m * f_net + random.gauss(0, 0.1 * v)
+    else :
+        v_n = 0
+    return v_n
 
 
 def compute_net_force(f_i: float, y: float) -> float:
