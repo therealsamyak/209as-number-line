@@ -90,31 +90,26 @@ class ParticleSystem:
         f_net = f_i - self.phi_derivative(self.y)
         return f_net
 
-    def update(self, f_i: float, dt: float = 1.0) -> tuple[float, float, bool]:
+    def update_velocity(self, f_net: float, dt: float = 1.0) -> bool:
         """
-        Update the state of the particle system for one time step.
+        Update velocity with crash probability check and speed wobble.
 
-        State equations:
-        - y[t+1] = y[t] + v[t] + N(0, 0.25*v[t]^2)
-        - v[t+1] = v[t] + (1/m)*f_net(t) + N(0, 0.01*v[t]^2)
-          with crash probability check
+        v[t+1] = v[t] + (1/m)*f_net(t) + N(0, 0.01*v[t]^2)
+        with crash probability check
 
         Parameters:
         -----------
-        f_i : float
-            Applied force at current time step
+        f_net : float
+            Net force acting on the particle
         dt : float
             Time step (default 1.0 for discrete time)
 
         Returns:
         --------
-        tuple[float, float, bool]
-            (sensed_position, true_position, crashed)
+        bool
+            True if crash occurred, False otherwise
         """
         crashed = False
-
-        # Compute net force
-        f_net = self.compute_net_force(f_i)
 
         # Check crash probability
         # Draw uniform random number p ∈ U([0,1])
@@ -131,14 +126,67 @@ class ParticleSystem:
             speed_wobble = np.random.normal(0, np.sqrt(0.01 * self.v**2))
             self.v = self.v + (1.0 / self.m) * f_net * dt + speed_wobble
 
-        # Position update with sensor noise
-        # y[t+1] = y[t] + v[t] + N(0, 0.25*v[t]^2)
-        sensor_noise = np.random.normal(0, np.sqrt(0.25 * self.v**2))
+        return crashed
+
+    def update_position(self, dt: float = 1.0) -> tuple[float, float]:
+        """
+        Update position with sensor noise.
+
+        y[t+1] = y[t] + v[t] (true position)
+        y_sensed = y_true + N(0, 0.25*v[t]^2) (sensed position with noise)
+
+        Parameters:
+        -----------
+        dt : float
+            Time step (default 1.0 for discrete time)
+
+        Returns:
+        --------
+        tuple[float, float]
+            (true_position, sensed_position)
+        """
+        # Position update (true position)
         y_true = self.y + self.v * dt
+
+        # Add sensor noise to get sensed position
+        # Sensor noise: N(0, 0.25*v[t]^2)
+        sensor_noise = np.random.normal(0, np.sqrt(0.25 * self.v**2))
         y_sensed = y_true + sensor_noise
 
-        # Update state
+        # Update internal state
         self.y = y_true
+
+        return y_true, y_sensed
+
+    def update(self, f_i: float, dt: float = 1.0) -> tuple[float, float, bool]:
+        """
+        Update the state of the particle system for one time step.
+
+        Orchestrates the update of both velocity and position using
+        the abstracted update functions.
+
+        Parameters:
+        -----------
+        f_i : float
+            Applied force at current time step
+        dt : float
+            Time step (default 1.0 for discrete time)
+
+        Returns:
+        --------
+        tuple[float, float, bool]
+            (sensed_position, true_position, crashed)
+        """
+        # Compute net force
+        f_net = self.compute_net_force(f_i)
+
+        # Update velocity (with crash probability and speed wobble)
+        crashed = self.update_velocity(f_net, dt)
+
+        # Update position (with sensor noise)
+        y_true, y_sensed = self.update_position(dt)
+
+        # Update time
         self.time += dt
 
         # Record history
