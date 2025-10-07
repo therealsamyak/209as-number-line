@@ -25,3 +25,7 @@ pip install -r requirements.txt
 ## Autoformat
 
 Install the 'Ruff' VSCode Extension here: https://marketplace.cursorapi.com/items/?itemName=charliermarsh.ruff for autoformatting.
+
+## Disclaimer
+
+AI was used to generate code in this repository.
