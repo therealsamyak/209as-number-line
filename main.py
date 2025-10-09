@@ -12,8 +12,11 @@ f_i = 0.5  # constant applied force
 y_0 = 0.0  # initial position
 v_0 = 0.0  # initial velocity
 v_max = 10.0  # maximum velocity
+y_max = 100
 p_c = 0.1  # crash probability factor
+p_w = 0.1
 
+A = 1 # Amplitude of f_phi
 
 class State:
     def __init__(self, y: float, v: float):
@@ -31,12 +34,9 @@ def update_state(state: State, f_i: float):
         state: Current state (y, v)
         f_i: Applied force (input)
     """
-    f_net = compute_net_force(f_i, state.y)
+    f_net = net_force(f_i, state.y)
     state.y = update_position(state.y, state.v)
     state.v = update_velocity(state.v, f_net)
-
-    
-
 
 def update_position(y: float, v: float) -> float:
     return y + v
@@ -50,36 +50,35 @@ def print_state(t, x: State):
     y_noisy = noisy_position(x.y)
     print(t, f"State(y={x.y:.3g}, v={x.v:.3g}, y_noisy={y_noisy:.3g})")
 
+def wobble_prob(v):
+    return (v/v_max) * (p_w/2)
+
+def speed_wobble(v):
+    p = wobble_prob(v) # Probability of adding speed due to wobble
+    r = random.uniform(0,1)
+    if r <= p:
+        return 1
+    elif r > 1-(p):
+        return -1
+    else:
+        return 0
+
+def crash_wobble(v):
+    return p_c * abs(v)/v_max
 
 def update_velocity(v: float, f_net: float) -> float:
-    """Update velocity: v'(t) = v(t) + (1/m) * f_net(t)
+    p = crash_wobble(v)
+    r = random.uniform()
+    if r <= p:
+        return 0
+    else:
+        return v + f_net/m + speed_wobble(v)
 
-    For pure particle without potential field: f_net(t) = f_i(t)
-    """
-    crash_prob = p_c * abs(v)/v_max
-    normal_dist = np.random.uniform()
-    if normal_dist <= crash_prob:
-        v_n = v + 1/m * f_net + random.gauss(0, 0.1 * v)
-    else :
-        v_n = 0
-    return v_n
+def f_phi(y):
+    return int(A*np.sin(2*np.pi*y/y_max))
 
-
-def compute_net_force(f_i: float, y: float) -> float:
-    """Compute net force: f_net(t) = f_i(t) - d/dy(phi(y))
-
-    Args:
-        f_i: Applied force (input)
-        y: Current position
-
-    Returns:
-        Net force acting on the particle
-    """
-    # Numerical derivative of phi with respect to y
-    epsilon = 1e-8
-    d_phi_dy = (phi(y + epsilon) - phi(y - epsilon)) / (2 * epsilon)
-    return f_i - d_phi_dy
-
+def net_force(f_i: float, y: float) -> float:
+    return f_i + f_phi(y)
 
 def main():
     # Initialize state
