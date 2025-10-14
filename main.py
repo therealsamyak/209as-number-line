@@ -7,12 +7,17 @@ import matplotlib.pyplot as plt
 class ContinuousParticleSystem:
     """The TRUE system with continuous state space"""
 
-    def __init__(self, m, y_max, v_max, A, p_c):
+    def __init__(
+        self, m, y_max, v_max, A, p_c, goal_y=0.0, goal_v=0.0, goal_tolerance=0.1
+    ):
         self.m = m
         self.y_max = y_max
         self.v_max = v_max
         self.A = A
         self.p_c = p_c
+        self.goal_y = goal_y
+        self.goal_v = goal_v
+        self.goal_tolerance = goal_tolerance
 
     def phi(self, y):
         """Potential field force"""
@@ -55,7 +60,14 @@ class ContinuousParticleSystem:
             y_next = np.clip(y_next, -self.y_max, self.y_max)
 
         # Reward: 1 if near goal, 0 otherwise
-        reward = 1.0 if (abs(y_next) < 0.1 and abs(v_next) < 0.1) else 0.0
+        reward = (
+            1.0
+            if (
+                abs(y_next - self.goal_y) < self.goal_tolerance
+                and abs(v_next - self.goal_v) < self.goal_tolerance
+            )
+            else 0.0
+        )
         done = reward == 1.0
 
         return (y_next, v_next), reward, done
@@ -72,16 +84,20 @@ class ContinuousParticleSystem:
 class GridParticleSystem:
     """Discretized approximation with ANALYTICAL transition computation"""
 
-    def __init__(self, continuous_system, delta_y, delta_v):
+    def __init__(self, continuous_system, delta_y, delta_v, goal_y=0.0, goal_v=0.0):
         """
         Args:
             continuous_system: ContinuousParticleSystem instance
             delta_y: position grid resolution
             delta_v: velocity grid resolution
+            goal_y: target position (default: 0.0)
+            goal_v: target velocity (default: 0.0)
         """
         self.continuous = continuous_system
         self.delta_y = delta_y
         self.delta_v = delta_v
+        self.goal_y = goal_y
+        self.goal_v = goal_v
 
         # Create grid
         self.y_grid = np.arange(
@@ -225,8 +241,11 @@ class GridParticleSystem:
     def reward(self, i, j):
         """Reward function on grid"""
         y, v = self.continuous_state(i, j)
-        # Goal: near origin (within one grid cell)
-        if abs(y) <= self.delta_y and abs(v) <= self.delta_v:
+        # Goal: reach target position and velocity (within one grid cell)
+        if (
+            abs(y - self.goal_y) <= self.delta_y
+            and abs(v - self.goal_v) <= self.delta_v
+        ):
             return 1.0
         return 0.0
 
@@ -527,17 +546,25 @@ def main():
     # ============================================================
     # 1. SYSTEM PARAMETERS (Week 1)
     # ============================================================
+    # All parameters are easily configurable for arbitrary environments/tasks:
+    # - Change m, y_max, v_max for different dynamics
+    # - Change A to adjust potential field amplitude (A=0 disables field)
+    # - Change p_c to adjust crash probability
+    # - Change goal_y, goal_v to test different target states
     params = {
         "m": 1.0,
         "y_max": 10.0,
         "v_max": 5.0,
         "A": 2.0,
         "p_c": 0.1,
+        "goal_y": 0.0,  # Target position (try 5.0, -3.0, etc.)
+        "goal_v": 0.0,  # Target velocity (try 2.0, -1.0, etc.)
+        "goal_tolerance": 0.1,  # Goal tolerance for continuous system
     }
 
     print("\nSystem Parameters (Week 1 Dynamics):")
     for key, val in params.items():
-        print(f"  {key:8s} = {val}")
+        print(f"  {key:16s} = {val}")
 
     # ============================================================
     # 2. CREATE CONTINUOUS (REAL) SYSTEM
@@ -553,12 +580,19 @@ def main():
     print("\n" + "=" * 60)
     print("Creating grid approximation...")
 
-    delta_y = 0.5  # Position resolution
-    delta_v = 0.5  # Velocity resolution
+    delta_y = 0.25  # Position resolution (smaller = finer grid, better accuracy)
+    delta_v = 0.25  # Velocity resolution (smaller = finer grid, better accuracy)
 
     print(f"  Resolution: Δy={delta_y}, Δv={delta_v}")
+    print(f"  Goal: y={params['goal_y']}, v={params['goal_v']}")
 
-    grid_sys = GridParticleSystem(continuous_sys, delta_y=delta_y, delta_v=delta_v)
+    grid_sys = GridParticleSystem(
+        continuous_sys,
+        delta_y=delta_y,
+        delta_v=delta_v,
+        goal_y=params["goal_y"],
+        goal_v=params["goal_v"],
+    )
     print("✓ Grid system created with analytical transitions")
 
     # ============================================================
@@ -629,11 +663,14 @@ def resolution_experiment():
         "v_max": 5.0,
         "A": 2.0,
         "p_c": 0.1,
+        "goal_y": 0.0,
+        "goal_v": 0.0,
+        "goal_tolerance": 0.1,
     }
 
     continuous_sys = ContinuousParticleSystem(**params)
 
-    resolutions = [1.0, 0.5, 0.25]
+    resolutions = [1.0, 0.5, 0.25, 0.2, 0.15]
     results_by_res = {}
 
     for delta in resolutions:
@@ -641,7 +678,13 @@ def resolution_experiment():
         print(f"Testing resolution Δ = {delta}")
         print(f"{'=' * 60}")
 
-        grid_sys = GridParticleSystem(continuous_sys, delta_y=delta, delta_v=delta)
+        grid_sys = GridParticleSystem(
+            continuous_sys,
+            delta_y=delta,
+            delta_v=delta,
+            goal_y=params["goal_y"],
+            goal_v=params["goal_v"],
+        )
         vi = ValueIteration(grid_sys, gamma=0.95)
         vi.solve(max_iterations=200, threshold=1e-4)
 

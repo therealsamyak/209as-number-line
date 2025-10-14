@@ -155,3 +155,15 @@ $$
 for this problem specifically
 
 how would i code this such that we have our original system but want to implement a 'mock system' with the grid decomposition to get a policy to then plug in to the original system to see how well it solves it etc.
+
+Formulate then solve an approximate MDP problem on this continuous space dynamical numberline
+system, finding a continuous space policy for a variety of task definitions.
+Try to do so in a way that allows for arbitrary environments and tasks to be loaded, giving you a
+general approximate dynamical MDP solver that you can apply to these problems.
+You may want to consider problems in the following order:
+• Discretize the state and action spaces using grid decomposition (with the resolution being a configurable
+hyperparameter), and compute an optimal policy on the discretized problem.
+• Using a nearest-neighbor (NN), 0-step lookahead process: derive, simulate, and evaluate the resulting continuous
+space policies for varying grid resolutions.
+
+you are misunderstanding, its more about numbers not about the type, like its a sin function but can we change the amplitude easily? or its a reward function but can it support other reward states besides 0,0 at speed 0
