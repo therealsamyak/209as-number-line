@@ -167,3 +167,173 @@ hyperparameter), and compute an optimal policy on the discretized problem.
 space policies for varying grid resolutions.
 
 you are misunderstanding, its more about numbers not about the type, like its a sin function but can we change the amplitude easily? or its a reward function but can it support other reward states besides 0,0 at speed 0
+
+# Understanding the meaning of trajectory.png
+
+_Exported on 10/14/2025 at 11:40:56 PDT from Cursor (1.7.38)_
+
+---
+
+**User**
+
+what is trajectory.png represent
+
+---
+
+**Cursor**
+
+I'll help you understand what `trajectory.png` represents. Let me first look at the image and the code that likely generates it.
+
+Based on the image and code, **`trajectory.png`** represents the behavior of a **dynamical system on a number line** tracking an agent's movement over time. It contains three subplots:
+
+## 1. **Position over Time** (Top, Blue)
+
+- Shows how the agent's position `y` changes over time steps
+- The red dashed line at `y=0` marks the goal position
+- The agent oscillates around the goal, trying to reach and stay at position 0
+
+## 2. **Velocity over Time** (Middle, Green)
+
+- Shows how the agent's velocity `v` changes over time steps
+- The red dashed line at `v=0` marks the goal velocity (stationary)
+- The agent's velocity fluctuates as it tries to come to rest
+
+## 3. **Phase Space** (Bottom, Purple)
+
+- Plots velocity versus position, showing the system's state trajectory
+- **Green circle**: Starting state
+- **Blue square**: Ending state
+- **Red star**: Goal state (position=0, velocity=0)
+- This visualization shows the path the system takes through its state space
+
+This appears to be from a **reinforcement learning or control problem** where an agent learns to navigate to position 0 with zero velocity, similar to a pendulum or cart-pole balancing problem. The oscillatory behavior suggests the agent is learning to dampen its motion and converge to the goal state.
+
+---
+
+**User**
+
+look at the code in here how is it generated and why is it important
+
+---
+
+**Cursor**
+
+Based on the code you've provided, here's how `trajectory.png` is generated and why it's important:
+
+## How It's Generated
+
+The trajectory is created through this process:
+
+### 1. **Data Collection** (lines 621-623 in `main()`)
+
+```python
+reward, steps, trajectory, success = evaluator.run_episode(
+    y0=-8.0, v0=0.0, render=True
+)
+```
+
+- A single episode is run on the **continuous (real) system** starting from position y=-8.0 and velocity v=0.0
+- The agent uses the **policy learned from the discretized grid** via Value Iteration
+- At each timestep, the agent's continuous state `(y, v)` is recorded in the trajectory list
+
+### 2. **Visualization** (lines 471-509, called at line 644)
+
+The `plot_trajectory()` function creates three subplots:
+
+**Top Plot - Position vs Time:**
+
+```python
+axes[0].plot(times, y_vals, "b-", linewidth=2)
+axes[0].axhline(0, color="r", linestyle="--", label="Goal y=0")
+```
+
+Shows how position evolves over timesteps
+
+**Middle Plot - Velocity vs Time:**
+
+```python
+axes[1].plot(times, v_vals, "g-", linewidth=2)
+axes[1].axhline(0, color="r", linestyle="--", label="Goal v=0")
+```
+
+Shows how velocity evolves over timesteps
+
+**Bottom Plot - Phase Space:**
+
+```python
+axes[2].plot(y_vals, v_vals, "purple", linewidth=2, alpha=0.6)
+axes[2].plot(y_vals[0], v_vals[0], "go", markersize=10, label="Start")
+axes[2].plot(y_vals[-1], v_vals[-1], "bs", markersize=10, label="End")
+axes[2].plot(0, 0, "r*", markersize=15, label="Goal")
+```
+
+Shows the state-space trajectory (velocity vs position)
+
+## Why It's Important
+
+### 1. **Validates the Grid Approximation**
+
+This is the **key insight** of your project:
+
+- The policy is learned on a **discretized grid** (GridParticleSystem)
+- But it's executed on the **continuous system** (ContinuousParticleSystem)
+- The trajectory proves that discrete planning can successfully control continuous dynamics
+
+### 2. **Demonstrates Convergence Behavior**
+
+The oscillating pattern in your trajectory shows:
+
+- The agent is **actively controlling** to reach the goal at (y=0, v=0)
+- The system has **stochastic dynamics** (speed wobble, crashes) causing variations
+- The agent learns to **dampen oscillations** and stabilize near the goal
+
+### 3. **Phase Space Reveals Control Strategy**
+
+The bottom plot is particularly insightful:
+
+- Shows the **closed-loop behavior** - how position and velocity interact
+- Reveals if the policy creates stable/unstable dynamics
+- In your image, the trajectory spirals toward the goal, indicating a stabilizing controller
+
+### 4. **Debugging and Analysis**
+
+- If the trajectory diverges or fails to reach the goal, it indicates issues with:
+  - Grid resolution (delta_y, delta_v)
+  - Transition probability computation
+  - Value iteration convergence
+  - System parameters (A, p_c, m)
+
+### 5. **Visual Proof of Concept**
+
+For your Week 3 assignment (based on the prompts folder), this demonstrates:
+
+- **Week 1 dynamics** are correctly implemented (speed wobble, crashes, potential field)
+- **Grid decomposition** successfully approximates continuous state space
+- **Value iteration** finds an optimal policy despite discretization errors
+
+The trajectory is essentially the "output" that validates your entire MDP pipeline: continuous system → grid discretization → analytical transitions → value iteration → policy execution → goal achievement.
+
+```python
+reward, steps, trajectory, success = evaluator.run_episode(
+    y0=-8.0, v0=0.0, render=True
+)
+```
+
+```python
+axes[0].plot(times, y_vals, "b-", linewidth=2)
+axes[0].axhline(0, color="r", linestyle="--", label="Goal y=0")
+```
+
+```python
+axes[1].plot(times, v_vals, "g-", linewidth=2)
+axes[1].axhline(0, color="r", linestyle="--", label="Goal v=0")
+```
+
+```python
+axes[2].plot(y_vals, v_vals, "purple", linewidth=2, alpha=0.6)
+axes[2].plot(y_vals[0], v_vals[0], "go", markersize=10, label="Start")
+axes[2].plot(y_vals[-1], v_vals[-1], "bs", markersize=10, label="End")
+axes[2].plot(0, 0, "r*", markersize=15, label="Goal")
+```
+
+
