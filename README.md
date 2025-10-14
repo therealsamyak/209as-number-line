@@ -37,4 +37,4 @@ Install the 'Ruff' VSCode Extension here: https://marketplace.cursorapi.com/item
 
 ## Disclaimer
 
-AI was used to generate code in this repository. See `prompts/` folder for the full list of prompts.
+AI was used to generate code in this repository. See `prompts/` folder for the full list of prompts used for coding.
