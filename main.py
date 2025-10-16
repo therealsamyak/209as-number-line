@@ -471,8 +471,12 @@ def visualize_policy(vi, grid_sys, save_path="policy_visualization.png"):
         f"Goal: ({grid_sys.goal_y}, {grid_sys.goal_v}), γ={vi.gamma}"
     )
     fig.text(
-        0.5, 0.02, param_text, ha="center", fontsize=9,
-        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3)
+        0.5,
+        0.02,
+        param_text,
+        ha="center",
+        fontsize=9,
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3),
     )
 
     plt.tight_layout(rect=[0, 0.08, 1, 1])  # Make room for parameter text
@@ -481,7 +485,9 @@ def visualize_policy(vi, grid_sys, save_path="policy_visualization.png"):
     plt.show()
 
 
-def plot_trajectory(trajectory, continuous_sys=None, grid_sys=None, save_path="trajectory.png"):
+def plot_trajectory(
+    trajectory, continuous_sys=None, grid_sys=None, save_path="trajectory.png"
+):
     """Plot state trajectory over time"""
     y_vals = [s[0] for s in trajectory]
     v_vals = [s[1] for s in trajectory]
@@ -525,13 +531,17 @@ def plot_trajectory(trajectory, continuous_sys=None, grid_sys=None, save_path="t
         if grid_sys is not None:
             param_text += f"\nGrid: Δy={grid_sys.delta_y}, Δv={grid_sys.delta_v}"
         fig.text(
-            0.5, 0.02, param_text, ha="center", fontsize=9,
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3)
+            0.5,
+            0.02,
+            param_text,
+            ha="center",
+            fontsize=9,
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3),
         )
         plt.tight_layout(rect=[0, 0.06, 1, 1])
     else:
         plt.tight_layout()
-    
+
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     print(f"Trajectory plot saved to {save_path}")
     plt.show()
@@ -567,13 +577,17 @@ def plot_convergence(results_by_resolution, continuous_sys=None, gamma=None):
         if gamma is not None:
             param_text += f", γ={gamma}"
         fig.text(
-            0.5, 0.02, param_text, ha="center", fontsize=9,
-            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3)
+            0.5,
+            0.02,
+            param_text,
+            ha="center",
+            fontsize=9,
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3),
         )
         plt.tight_layout(rect=[0, 0.06, 1, 1])
     else:
         plt.tight_layout()
-    
+
     plt.savefig("resolution_analysis.png", dpi=150, bbox_inches="tight")
     print("Resolution analysis saved to resolution_analysis.png")
     plt.show()
