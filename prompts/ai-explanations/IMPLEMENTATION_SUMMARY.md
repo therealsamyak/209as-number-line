@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a complete implementation of a grid-based Markov Decision Process (MDP) solver for continuous-state control problems. The system solves a particle control task with stochastic dynamics by discretizing the continuous state space into a finite grid, computing optimal policies via value iteration, and providing four different methods for executing the learned policy in continuous space.
+This is a complete implementation of a grid-based Markov Decision Process (MDP) solver for continuous-state control problems. The system solves a particle control task with stochastic dynamics by discretizing the continuous state space into a finite grid, computing optimal policies via value iteration, and providing multiple methods for executing the learned policy in continuous space, including a k-nearest neighbors (k-NN) averaging approach for smoother action selection.
 
 ---
 
@@ -126,7 +126,7 @@ Instead of Monte Carlo sampling, transition probabilities are computed exactly u
 
 ### Key Methods
 
-#### `__init__(continuous_system, delta_y, delta_v, goal_y, goal_v)`
+#### `__init__(continuous_system, delta_y, delta_v, goal_y, goal_v, k_neighbors, use_knn)`
 
 Creates the grid and precomputes all transitions.
 
@@ -135,6 +135,8 @@ Creates the grid and precomputes all transitions.
 - `continuous_system`: Reference to the true dynamics
 - `delta_y`, `delta_v`: Grid resolution (smaller = finer grid)
 - `goal_y`, `goal_v`: Target state
+- `k_neighbors`: Number of nearest neighbors for k-NN averaging (default: 4)
+- `use_knn`: Whether to use k-NN averaging by default (default: False)
 
 **Grid Creation:**
 
@@ -156,6 +158,31 @@ j = floor((v + v_max) / delta_v)
 #### `continuous_state(i, j)`
 
 Maps grid indices back to continuous coordinates (cell centers).
+
+#### `discretize_knn(y, v, k)`
+
+Finds the k nearest grid cells to a continuous state.
+
+**Algorithm:**
+1. Compute Euclidean distance from (y, v) to all grid cells
+2. Sort by distance
+3. Return the k closest cells with their distances
+
+**Returns:** List of (i, j, distance) tuples for k nearest cells
+
+#### `get_averaged_state_knn(y, v, k)`
+
+Computes a smoothed state by averaging k nearest neighbors.
+
+**Process:**
+1. Find k nearest grid cells using `discretize_knn()`
+2. Get the continuous coordinates (y_cell, v_cell) for each
+3. Average the positions: y_avg = Σ y_cell / k
+4. Average the velocities: v_avg = Σ v_cell / k
+
+**Returns:** (y_avg, v_avg) - averaged continuous state
+
+**Use case:** Reduces discretization noise by smoothing over nearby grid cells rather than snapping to a single nearest cell.
 
 #### `_compute_transitions_analytical()`
 
@@ -232,13 +259,13 @@ Q(i, j, a) = Σ_{i',j'} P((i',j')|(i,j),a) * [R(i',j') + γ*V(i',j')]
 
 ---
 
-## Four Action Selection Methods
+## Action Selection Methods
 
 The key innovation: after learning V\* on the grid, we can use it in continuous space via different strategies.
 
 ### Method 1: Baseline (Nearest-Neighbor)
 
-**Implementation:** `get_action(y, v)`
+**Implementation:** `get_action(y, v, use_knn=False)`
 
 **Algorithm:**
 
@@ -254,6 +281,44 @@ The key innovation: after learning V\* on the grid, we can use it in continuous 
 - Performance degrades with coarse grids
 
 **Use case:** When grid is already fine and speed is critical
+
+---
+
+### Method 1b: k-Nearest Neighbors Averaging
+
+**Implementation:** `get_action(y, v, use_knn=True, k=4)`
+
+**Algorithm:**
+
+1. Find k nearest grid cells to (y, v)
+2. Compute averaged state: (y_avg, v_avg) from k neighbors
+3. Discretize the averaged state to grid cell (i, j)
+4. Look up precomputed policy: a = policy[i, j]
+5. Return action
+
+**Mathematical Details:**
+```
+neighbors = discretize_knn(y, v, k)  # k nearest cells
+y_avg = (1/k) * Σ y_cell  for all neighbors
+v_avg = (1/k) * Σ v_cell  for all neighbors
+(i, j) = discretize(y_avg, v_avg)
+action = policy[i, j]
+```
+
+**Characteristics:**
+
+- Smooths discretization by averaging nearby grid cells
+- Reduces noise from grid quantization
+- Still O(n) for finding k-NN (can be optimized)
+- More robust to grid alignment
+- Continuous in expectation over neighbors
+
+**Use case:** When you want smoother behavior without changing the value function or adding much computational cost
+
+**Configuration:**
+- `k_neighbors`: Set in grid system initialization
+- `use_knn`: Enable/disable globally or per call
+- Typical values: k ∈ {4, 8, 16}
 
 ---
 
@@ -605,6 +670,8 @@ Complete workflow from setup to evaluation.
    m = 1.0, y_max = 10.0, v_max = 5.0
    A = 2.0, p_c = 0.1
    goal = (0, 0), Δy = Δv = 0.25
+   start_y = -8.0, start_v = 0.0  # Initial state
+   k_neighbors = 4, use_knn = False  # k-NN configuration
    ```
 
 2. **Create Continuous System**
@@ -616,10 +683,15 @@ Complete workflow from setup to evaluation.
 3. **Create Grid System**
 
    ```python
-   grid_sys = GridParticleSystem(continuous_sys, delta_y, delta_v)
+   grid_sys = GridParticleSystem(
+       continuous_sys, delta_y, delta_v, 
+       goal_y, goal_v,
+       k_neighbors=4, use_knn=False
+   )
    ```
 
    - This precomputes all transition probabilities
+   - Configures k-NN parameters for action selection
 
 4. **Solve MDP**
 
@@ -742,6 +814,50 @@ for method in methods_to_test:
 
 for method, res in results.items():
     print(f"{method}: {res['success_rate']:.1%} success")
+```
+
+### Custom: Test k-NN Averaging
+
+```python
+# Enable k-NN globally in grid system
+grid_sys = GridParticleSystem(
+    continuous_sys, delta_y=0.5, delta_v=0.5,
+    k_neighbors=8, use_knn=True  # Enable k-NN with k=8
+)
+vi = ValueIteration(grid_sys, gamma=0.95)
+vi.solve()
+
+# Evaluate with k-NN enabled (uses grid's settings)
+evaluator = PolicyEvaluator(continuous_sys, vi)
+results = evaluator.evaluate(n_episodes=100)
+print(f"k-NN (k=8): {results['success_rate']:.1%} success")
+
+# Or override k-NN settings per evaluation
+results_standard = evaluator.evaluate(n_episodes=50, use_knn=False)
+results_knn4 = evaluator.evaluate(n_episodes=50, use_knn=True, k=4)
+results_knn16 = evaluator.evaluate(n_episodes=50, use_knn=True, k=16)
+```
+
+### Custom: Compare Standard vs k-NN on Coarse Grid
+
+```python
+# Test on coarse grid (where k-NN should help)
+grid_sys = GridParticleSystem(continuous_sys, delta_y=1.0, delta_v=1.0)
+vi = ValueIteration(grid_sys, gamma=0.95)
+vi.solve()
+
+evaluator = PolicyEvaluator(continuous_sys, vi)
+
+# Standard nearest-neighbor
+results_std = evaluator.evaluate(n_episodes=100, use_knn=False)
+
+# k-NN smoothing
+results_knn = evaluator.evaluate(n_episodes=100, use_knn=True, k=8)
+
+print(f"Coarse Grid (Δ=1.0):")
+print(f"  Standard: {results_std['success_rate']:.1%}")
+print(f"  k-NN (k=8): {results_knn['success_rate']:.1%}")
+print(f"  Improvement: +{(results_knn['success_rate'] - results_std['success_rate'])*100:.1f}%")
 ```
 
 ---
@@ -885,6 +1001,13 @@ transitions = {k: v/total_prob for k, v in transitions.items()}
 - Use combined method (compensates for coarse grid)
 - Net result: Better performance/computation trade-off
 
+**k-NN Averaging:**
+
+- Best for: Medium-coarse grids where baseline shows discretization artifacts
+- Trade-off: Better than baseline, slower than baseline, but simpler than interpolation methods
+- Tuning: Start with k=4, increase if policy is too noisy, decrease if too smooth
+- Works well combined with: Any grid resolution, especially Δ ∈ [0.5, 1.0]
+
 ---
 
 ## Testing and Validation
@@ -962,7 +1085,15 @@ transitions = {k: v/total_prob for k, v in transitions.items()}
 
 ## Conclusion
 
-This implementation provides a complete, production-ready system for solving continuous-state control problems using grid-based discretization. The four action selection methods demonstrate the trade-off between computational cost and policy quality, with the combined lookahead+bilinear method offering the best performance at the cost of additional computation.
+This implementation provides a complete, production-ready system for solving continuous-state control problems using grid-based discretization. The multiple action selection methods demonstrate the trade-off between computational cost and policy quality, with several options available depending on requirements.
+
+**Method Selection Guide:**
+
+1. **Baseline (Nearest-Neighbor)**: Use when grid is already fine (Δ < 0.2) and speed is critical
+2. **k-NN Averaging**: Use for quick improvement over baseline with minimal code changes, especially on medium-coarse grids
+3. **Bilinear Interpolation**: Use when you want smooth policies without changing dynamics model
+4. **Lookahead**: Use when current state accuracy matters more than speed
+5. **Combined (Lookahead + Bilinear)**: Use for best performance on coarse grids
 
 The comprehensive experimental framework enables systematic comparison of methods and analysis of how grid resolution affects performance. This provides valuable insights for practitioners choosing discretization strategies for continuous-state RL problems.
 
@@ -970,5 +1101,7 @@ Key takeaways:
 
 - Grid discretization is effective but requires careful handling of continuous states
 - Smarter action selection can compensate for coarser grids
+- k-NN averaging provides a simple middle-ground between baseline and advanced interpolation
 - The optimal approach depends on computational constraints and performance requirements
 - Bilinear interpolation and lookahead are complementary techniques that combine well
+- Configurable parameters (k_neighbors, use_knn, start_y, start_v) enable easy experimentation
