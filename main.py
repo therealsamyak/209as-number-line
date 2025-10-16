@@ -207,9 +207,22 @@ class GridParticleSystem:
                 v_cell_low = self.v_grid[j_next]
                 v_cell_high = v_cell_low + self.delta_v
 
-                # Clip to velocity bounds
-                v_cell_low_clipped = max(v_cell_low, -self.continuous.v_max)
-                v_cell_high_clipped = min(v_cell_high, self.continuous.v_max)
+                # Handle boundary cells specially to capture clipped probability mass
+                # For boundary cells, integrate from cell edge to infinity (or -infinity)
+                if j_next == self.n_v - 1:
+                    # Highest velocity cell: capture all v >= v_cell_low
+                    # (after clipping, any v > v_max ends up in this cell)
+                    v_cell_high_clipped = float("inf")
+                    v_cell_low_clipped = v_cell_low
+                elif j_next == 0:
+                    # Lowest velocity cell: capture all v <= v_cell_high
+                    # (after clipping, any v < -v_max ends up in this cell)
+                    v_cell_low_clipped = float("-inf")
+                    v_cell_high_clipped = v_cell_high
+                else:
+                    # Interior cells: normal clipping
+                    v_cell_low_clipped = max(v_cell_low, -self.continuous.v_max)
+                    v_cell_high_clipped = min(v_cell_high, self.continuous.v_max)
 
                 if wobble_std < 1e-6:
                     # No noise case (when v ≈ 0)
