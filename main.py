@@ -462,13 +462,26 @@ def visualize_policy(vi, grid_sys, save_path="policy_visualization.png"):
     cbar2.set_ticks([-1, 0, 1])
     ax2.legend()
 
-    plt.tight_layout()
+    # Add parameter information as text box
+    param_text = (
+        f"System Parameters:\n"
+        f"m={grid_sys.continuous.m}, A={grid_sys.continuous.A}, p_c={grid_sys.continuous.p_c}\n"
+        f"y_max={grid_sys.continuous.y_max}, v_max={grid_sys.continuous.v_max}\n"
+        f"Grid: Δy={grid_sys.delta_y}, Δv={grid_sys.delta_v}\n"
+        f"Goal: ({grid_sys.goal_y}, {grid_sys.goal_v}), γ={vi.gamma}"
+    )
+    fig.text(
+        0.5, 0.02, param_text, ha="center", fontsize=9,
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3)
+    )
+
+    plt.tight_layout(rect=[0, 0.08, 1, 1])  # Make room for parameter text
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     print(f"Policy visualization saved to {save_path}")
     plt.show()
 
 
-def plot_trajectory(trajectory, save_path="trajectory.png"):
+def plot_trajectory(trajectory, continuous_sys=None, grid_sys=None, save_path="trajectory.png"):
     """Plot state trajectory over time"""
     y_vals = [s[0] for s in trajectory]
     v_vals = [s[1] for s in trajectory]
@@ -503,13 +516,28 @@ def plot_trajectory(trajectory, save_path="trajectory.png"):
     axes[2].legend()
     axes[2].axis("equal")
 
-    plt.tight_layout()
+    # Add parameter information if provided
+    if continuous_sys is not None:
+        param_text = (
+            f"System Parameters: m={continuous_sys.m}, A={continuous_sys.A}, "
+            f"p_c={continuous_sys.p_c}, y_max={continuous_sys.y_max}, v_max={continuous_sys.v_max}"
+        )
+        if grid_sys is not None:
+            param_text += f"\nGrid: Δy={grid_sys.delta_y}, Δv={grid_sys.delta_v}"
+        fig.text(
+            0.5, 0.02, param_text, ha="center", fontsize=9,
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3)
+        )
+        plt.tight_layout(rect=[0, 0.06, 1, 1])
+    else:
+        plt.tight_layout()
+    
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     print(f"Trajectory plot saved to {save_path}")
     plt.show()
 
 
-def plot_convergence(results_by_resolution):
+def plot_convergence(results_by_resolution, continuous_sys=None, gamma=None):
     """Plot how performance varies with grid resolution"""
     resolutions = sorted(results_by_resolution.keys())
     success_rates = [results_by_resolution[r]["success_rate"] for r in resolutions]
@@ -530,7 +558,22 @@ def plot_convergence(results_by_resolution):
     ax2.set_title("Efficiency vs Resolution", fontsize=14, fontweight="bold")
     ax2.grid(True, alpha=0.3)
 
-    plt.tight_layout()
+    # Add parameter information if provided
+    if continuous_sys is not None:
+        param_text = (
+            f"System Parameters: m={continuous_sys.m}, A={continuous_sys.A}, "
+            f"p_c={continuous_sys.p_c}, y_max={continuous_sys.y_max}, v_max={continuous_sys.v_max}"
+        )
+        if gamma is not None:
+            param_text += f", γ={gamma}"
+        fig.text(
+            0.5, 0.02, param_text, ha="center", fontsize=9,
+            bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.3)
+        )
+        plt.tight_layout(rect=[0, 0.06, 1, 1])
+    else:
+        plt.tight_layout()
+    
     plt.savefig("resolution_analysis.png", dpi=150, bbox_inches="tight")
     print("Resolution analysis saved to resolution_analysis.png")
     plt.show()
@@ -641,7 +684,7 @@ def main():
     print("Creating visualizations...")
 
     visualize_policy(vi, grid_sys)
-    plot_trajectory(trajectory)
+    plot_trajectory(trajectory, continuous_sys, grid_sys)
 
     print("\n" + "=" * 60)
     print("✓ COMPLETE")
@@ -697,7 +740,7 @@ def resolution_experiment():
         print(f"  Success Rate: {results['success_rate'] * 100:.1f}%")
         print(f"  Avg Steps (success): {results['avg_steps_success']:.1f}")
 
-    plot_convergence(results_by_res)
+    plot_convergence(results_by_res, continuous_sys, gamma=0.95)
 
     return results_by_res
 
