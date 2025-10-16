@@ -84,7 +84,16 @@ class ContinuousParticleSystem:
 class GridParticleSystem:
     """Discretized approximation with ANALYTICAL transition computation"""
 
-    def __init__(self, continuous_system, delta_y, delta_v, goal_y=0.0, goal_v=0.0):
+    def __init__(
+        self,
+        continuous_system,
+        delta_y,
+        delta_v,
+        goal_y=0.0,
+        goal_v=0.0,
+        k_neighbors=4,
+        use_knn=False,
+    ):
         """
         Args:
             continuous_system: ContinuousParticleSystem instance
@@ -92,12 +101,16 @@ class GridParticleSystem:
             delta_v: velocity grid resolution
             goal_y: target position (default: 0.0)
             goal_v: target velocity (default: 0.0)
+            k_neighbors: number of nearest neighbors for k-NN averaging (default: 4)
+            use_knn: whether to use k-NN averaging by default (default: False)
         """
         self.continuous = continuous_system
         self.delta_y = delta_y
         self.delta_v = delta_v
         self.goal_y = goal_y
         self.goal_v = goal_v
+        self.k_neighbors = k_neighbors
+        self.use_knn = use_knn
 
         # Create grid
         self.y_grid = np.arange(
@@ -119,6 +132,11 @@ class GridParticleSystem:
         """Map continuous state to discrete grid indices"""
         i = int(np.clip((y + self.continuous.y_max) / self.delta_y, 0, self.n_y - 1))
         j = int(np.clip((v + self.continuous.v_max) / self.delta_v, 0, self.n_v - 1))
+
+        # pick i \in [i - k // 2, i + k//2)
+        # pick j \in [j - k//2, j + k//2]
+        # i = np.random.randint(i - k // 2, i + k // 2)
+        # j = np.random.randint(j - k // 2, j + k // 2)
         return i, j
 
     def continuous_state(self, i, j):
@@ -126,6 +144,55 @@ class GridParticleSystem:
         y = self.y_grid[i]
         v = self.v_grid[j]
         return y, v
+
+    def discretize_knn(self, y, v, k=4):
+        """
+        Find k nearest grid cells to continuous state (y, v)
+
+        Args:
+            y, v: continuous state
+            k: number of nearest neighbors
+
+        Returns:
+            neighbors: list of (i, j, distance) tuples for k nearest cells
+        """
+        distances = []
+        for i in range(self.n_y):
+            for j in range(self.n_v):
+                y_cell, v_cell = self.continuous_state(i, j)
+                dist = np.sqrt((y - y_cell) ** 2 + (v - v_cell) ** 2)
+                distances.append((i, j, dist))
+
+        # Sort by distance and take k nearest
+        distances.sort(key=lambda x: x[2])
+        return distances[:k]
+
+    def get_averaged_state_knn(self, y, v, k=4):
+        """
+        Get averaged state from k nearest neighbors
+
+        This maps a continuous state to a smoothed/averaged state by:
+        1. Finding the k nearest grid cells
+        2. Getting the position and velocity of each cell
+        3. Averaging those positions and velocities
+
+        Args:
+            y, v: continuous state
+            k: number of nearest neighbors (default: 4)
+
+        Returns:
+            y_avg, v_avg: averaged position and velocity from k neighbors
+        """
+        neighbors = self.discretize_knn(y, v, k)
+
+        y_sum = 0.0
+        v_sum = 0.0
+        for i, j, _ in neighbors:
+            y_cell, v_cell = self.continuous_state(i, j)
+            y_sum += y_cell
+            v_sum += v_cell
+
+        return y_sum / k, v_sum / k
 
     def _compute_transitions_analytical(self):
         """
@@ -321,9 +388,32 @@ class ValueIteration:
 
         return q_value
 
-    def get_action(self, y, v):
-        """Get action for continuous state using learned policy"""
-        i, j = self.grid.discretize(y, v)
+    def get_action(self, y, v, use_knn=None, k=None):
+        """
+        Get action for continuous state using learned policy
+
+        Args:
+            y, v: continuous state
+            use_knn: if True, use k-nearest neighbor averaging (default: use grid's setting)
+            k: number of nearest neighbors for averaging (default: use grid's k_neighbors)
+
+        Returns:
+            action: the action from the policy
+        """
+        # Use grid system defaults if not specified
+        if use_knn is None:
+            use_knn = self.grid.use_knn
+        if k is None:
+            k = self.grid.k_neighbors
+
+        if use_knn:
+            # K-NN approach: average the k nearest grid cell positions/velocities
+            y_avg, v_avg = self.grid.get_averaged_state_knn(y, v, k)
+            i, j = self.grid.discretize(y_avg, v_avg)
+        else:
+            # Standard approach: directly map to nearest cell
+            i, j = self.grid.discretize(y, v)
+
         action_idx = self.policy[i, j]
         return self.actions[action_idx]
 
@@ -335,9 +425,18 @@ class PolicyEvaluator:
         self.continuous = continuous_system
         self.vi = value_iteration
 
-    def run_episode(self, y0=None, v0=None, max_steps=500, render=False):
+    def run_episode(
+        self, y0=None, v0=None, max_steps=500, render=False, use_knn=None, k=None
+    ):
         """
         Run one episode using learned policy
+
+        Args:
+            y0, v0: initial state (if None, random)
+            max_steps: maximum episode length
+            render: if True, print step-by-step info
+            use_knn: if True, use k-nearest neighbor averaging (default: use grid's setting)
+            k: number of nearest neighbors (default: use grid's k_neighbors)
 
         Returns:
             total_reward: float
@@ -351,7 +450,7 @@ class PolicyEvaluator:
 
         for step in range(max_steps):
             # Get action from policy (trained on grid)
-            action = self.vi.get_action(*state)
+            action = self.vi.get_action(*state, use_knn=use_knn, k=k)
 
             # Execute in continuous system
             next_state, reward, done = self.continuous.step(state, action)
@@ -374,15 +473,33 @@ class PolicyEvaluator:
             print(f"  ✗ Episode ended after {max_steps} steps (no goal)")
         return total_reward, max_steps, trajectory, False
 
-    def evaluate(self, n_episodes=100, verbose=True):
-        """Run multiple episodes and compute statistics"""
+    def evaluate(self, n_episodes=100, verbose=True, use_knn=None, k=None):
+        """
+        Run multiple episodes and compute statistics
+
+        Args:
+            n_episodes: number of episodes to run
+            verbose: if True, print progress
+            use_knn: if True, use k-nearest neighbor averaging (default: use grid's setting)
+            k: number of nearest neighbors (default: use grid's k_neighbors)
+
+        Returns:
+            results: dict with statistics
+        """
+        # Use grid system defaults if not specified
+        if use_knn is None:
+            use_knn = self.vi.grid.use_knn
+        if k is None:
+            k = self.vi.grid.k_neighbors
+
         results = {"successes": 0, "steps_list": [], "rewards_list": []}
 
         if verbose:
-            print(f"\nEvaluating policy over {n_episodes} episodes...")
+            knn_str = f" (k-NN with k={k})" if use_knn else ""
+            print(f"\nEvaluating policy over {n_episodes} episodes{knn_str}...")
 
         for ep in range(n_episodes):
-            reward, steps, _, success = self.run_episode()
+            reward, steps, _, success = self.run_episode(use_knn=use_knn, k=k)
             results["rewards_list"].append(reward)
             results["steps_list"].append(steps)
             if success:
@@ -476,11 +593,14 @@ def visualize_policy(vi, grid_sys, save_path="policy_visualization.png"):
     ax2.legend()
 
     # Add parameter information as text box
+    knn_text = (
+        f", k-NN: k={grid_sys.k_neighbors} {'(ON)' if grid_sys.use_knn else '(OFF)'}"
+    )
     param_text = (
         f"System Parameters:\n"
         f"m={grid_sys.continuous.m}, A={grid_sys.continuous.A}, p_c={grid_sys.continuous.p_c}\n"
         f"y_max={grid_sys.continuous.y_max}, v_max={grid_sys.continuous.v_max}\n"
-        f"Grid: Δy={grid_sys.delta_y}, Δv={grid_sys.delta_v}\n"
+        f"Grid: Δy={grid_sys.delta_y}, Δv={grid_sys.delta_v}{knn_text}\n"
         f"Goal: ({grid_sys.goal_y}, {grid_sys.goal_v}), γ={vi.gamma}"
     )
     fig.text(
@@ -621,6 +741,8 @@ def main():
     # - Change A to adjust potential field amplitude (A=0 disables field)
     # - Change p_c to adjust crash probability
     # - Change goal_y, goal_v to test different target states
+    # - Change start_y, start_v for initial position (None = random)
+    # - Change k_neighbors for k-NN smoothing, use_knn to enable/disable it
     params = {
         "m": 1.0,
         "y_max": 10.0,
@@ -630,6 +752,10 @@ def main():
         "goal_y": 0.0,  # Target position (try 5.0, -3.0, etc.)
         "goal_v": 0.0,  # Target velocity (try 2.0, -1.0, etc.)
         "goal_tolerance": 0.1,  # Goal tolerance for continuous system
+        "start_y": -8.0,  # Initial position (None = random)
+        "start_v": 0.0,  # Initial velocity (None = random)
+        "k_neighbors": 4,  # Number of nearest neighbors for k-NN averaging
+        "use_knn": True,  # Enable k-NN averaging (vs direct nearest cell lookup)
     }
 
     print("\nSystem Parameters (Week 1 Dynamics):")
@@ -641,7 +767,13 @@ def main():
     # ============================================================
     print("\n" + "=" * 60)
     print("Creating continuous system...")
-    continuous_sys = ContinuousParticleSystem(**params)
+    # Extract only the parameters needed for ContinuousParticleSystem
+    continuous_params = {
+        k: v
+        for k, v in params.items()
+        if k not in ["k_neighbors", "use_knn", "start_y", "start_v"]
+    }
+    continuous_sys = ContinuousParticleSystem(**continuous_params)
     print("✓ Continuous system created")
 
     # ============================================================
@@ -655,6 +787,7 @@ def main():
 
     print(f"  Resolution: Δy={delta_y}, Δv={delta_v}")
     print(f"  Goal: y={params['goal_y']}, v={params['goal_v']}")
+    print(f"  k-NN: k={params['k_neighbors']}, enabled={params['use_knn']}")
 
     grid_sys = GridParticleSystem(
         continuous_sys,
@@ -662,6 +795,8 @@ def main():
         delta_v=delta_v,
         goal_y=params["goal_y"],
         goal_v=params["goal_v"],
+        k_neighbors=params["k_neighbors"],
+        use_knn=params["use_knn"],
     )
     print("✓ Grid system created with analytical transitions")
 
@@ -689,7 +824,7 @@ def main():
     # Single episode with visualization
     print("\n--- Single Episode (verbose) ---")
     reward, steps, trajectory, success = evaluator.run_episode(
-        y0=-8.0, v0=0.0, render=True
+        y0=params["start_y"], v0=params["start_v"], render=True
     )
 
     # Multiple episodes for statistics

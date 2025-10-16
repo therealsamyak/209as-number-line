@@ -224,6 +224,7 @@ For even more confidence, you could add:
 - **Property-based testing** (e.g., using Hypothesis)
 - **Performance benchmarks** (verify efficiency)
 - **Visualization tests** (plot trajectories, policies)
+- **k-NN specific tests**: Verify that k-NN averaging produces states within the convex hull of neighbors, test continuity properties
 
 ## ✅ Conclusion
 
@@ -235,8 +236,22 @@ This verification strategy allows you to:
 
 **Bottom Line:** These tests transform "AI wrote this code" from a reason to be skeptical into a reason to move fast – because you have automated verification that ensures correctness.
 
+### Note on Recent Extensions
+
+The codebase now includes k-NN averaging as an action selection method. While the core transition probabilities and value iteration remain unchanged (and thus verified), the k-NN feature adds:
+
+- `discretize_knn()`: Finds k nearest grid cells
+- `get_averaged_state_knn()`: Averages positions/velocities from neighbors
+- Additional parameters: `k_neighbors`, `use_knn`, `start_y`, `start_v`
+
+These extensions don't affect the verified core MDP solver, but users should verify that:
+- k-NN averaging produces sensible smoothed states
+- Policy performance improves or remains acceptable with k-NN enabled
+- The averaged state stays within reasonable bounds
+
 ---
 
 **Created:** October 2025  
+**Updated:** October 2025 (k-NN extensions noted)  
 **Purpose:** Document verification strategy for grid-based MDP solver
 

@@ -63,6 +63,65 @@ Given continuous state $(y, v)$:
 
 ---
 
+## Method 1b: k-Nearest Neighbors (k-NN) Averaging
+
+### Description
+
+An extension of the baseline that smooths the state by averaging k nearest grid cells before discretization.
+
+### Mathematical Formulation
+
+Given continuous state $(y, v)$ and parameter $k$:
+
+1. **Find k-nearest neighbors**: Compute Euclidean distances to all grid cells
+   $$d(i, j) = \sqrt{(y - y_i)^2 + (v - v_j)^2}$$
+   
+   Let $\mathcal{N}_k(y, v) = \{(i_1, j_1), \ldots, (i_k, j_k)\}$ be the k cells with smallest distances.
+
+2. **Compute averaged state**:
+   $$\bar{y} = \frac{1}{k} \sum_{(i, j) \in \mathcal{N}_k} y_i$$
+   $$\bar{v} = \frac{1}{k} \sum_{(i, j) \in \mathcal{N}_k} v_j$$
+
+3. **Discretize averaged state**:
+   $$i^* = \left\lfloor \frac{\bar{y} + y_\text{max}}{\Delta_y} \right\rfloor, \quad j^* = \left\lfloor \frac{\bar{v} + v_\text{max}}{\Delta_v} \right\rfloor$$
+
+4. **Action selection**: Look up policy at discretized averaged state
+   $$\pi_\text{knn}(y, v) = \pi^*(i^*, j^*)$$
+
+### Geometric Interpretation
+
+The k-NN method creates a "smoothed" version of the state by:
+- Taking a local neighborhood around the true state
+- Averaging their coordinates (acts as a low-pass filter)
+- Looking up the policy at this smoothed location
+
+This reduces quantization noise from grid discretization.
+
+### Relationship to Nearest-Neighbor
+
+- When $k=1$: Reduces to standard nearest-neighbor baseline
+- As $k \to \infty$: Averages over all grid cells (converges to grid center)
+- Typical values: $k \in \{4, 8, 16\}$
+
+### Pros and Cons
+
+**Pros**:
+
+- Smoother state-to-action mapping
+- Reduces discretization artifacts
+- More robust to grid alignment
+- Simple modification to baseline
+- Can improve performance on coarse grids
+
+**Cons**:
+
+- Slower than baseline: O(n_y × n_v) for finding neighbors
+- Still uses single policy lookup (not interpolating actions)
+- Choice of k requires tuning
+- Computational cost increases with grid size
+
+---
+
 ## Method 2: Bilinear Interpolation
 
 ### Description
@@ -242,14 +301,17 @@ The result is a policy that:
 
 Let $n = n_y \times n_v$ be the total number of grid states.
 
-| Method    | Precomputation | Per-Action Query      | Total per State       |
-| --------- | -------------- | --------------------- | --------------------- |
-| Baseline  | $O(1)$         | $O(1)$                | $O(1)$                |
-| Bilinear  | $O(1)$         | $O(n_v)$ (4 Q-values) | $O(n_v)$              |
-| Lookahead | $O(1)$         | $O(n_v)$ (integrate)  | $O(n_v)$              |
-| Combined  | $O(1)$         | $O(n_\text{samples})$ | $O(n_\text{samples})$ |
+| Method       | Precomputation | Per-Action Query      | Total per State         |
+| ------------ | -------------- | --------------------- | ----------------------- |
+| Baseline     | $O(1)$         | $O(1)$                | $O(1)$                  |
+| k-NN         | $O(1)$         | $O(n)$ (find k-NN)    | $O(n)$                  |
+| Bilinear     | $O(1)$         | $O(n_v)$ (4 Q-values) | $O(n_v)$                |
+| Lookahead    | $O(1)$         | $O(n_v)$ (integrate)  | $O(n_v)$                |
+| Combined     | $O(1)$         | $O(n_\text{samples})$ | $O(n_\text{samples})$   |
 
 All methods use the same value iteration for precomputation: $O(n^2 \cdot |\mathcal{A}|)$
+
+**Note on k-NN complexity**: The naive implementation is O(n) to find k neighbors. This can be optimized to O(log n) using spatial data structures (KD-trees, ball trees), but for typical grid sizes (< 10,000 states), the naive approach is sufficient.
 
 ---
 
